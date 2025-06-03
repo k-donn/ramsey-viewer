@@ -5,6 +5,92 @@ import InputGroupText from "react-bootstrap/esm/InputGroupText";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 
+function decimalToBinaryString(n: number, k: number) {
+	return n.toString(2).padStart(k, "0");
+}
+
+function findKmn(
+	edges: Edge[],
+	vertsCount: number,
+	m: number,
+	n: number
+): { redKEdges: Edge[]; blueKEdges: Edge[] } {
+	// Build adjacency matrices for red and blue edges
+	const redAdj = Array.from({ length: vertsCount }, () =>
+		Array(vertsCount).fill(false)
+	);
+	const blueAdj = Array.from({ length: vertsCount }, () =>
+		Array(vertsCount).fill(false)
+	);
+	edges.forEach((e) => {
+		if (e.color === "red") {
+			redAdj[e.source][e.target] = true;
+			redAdj[e.target][e.source] = true;
+		} else {
+			blueAdj[e.source][e.target] = true;
+			blueAdj[e.target][e.source] = true;
+		}
+	});
+
+	// Returns the vertices part of the clique
+	function findClique(adj, size) {
+		function helper(start, clique) {
+			if (clique.length === size) return clique.slice();
+			for (let v = start; v < vertsCount; v++) {
+				if (clique.every((u) => adj[u][v])) {
+					const found = helper(v + 1, clique.concat(v));
+					if (found) return found;
+				}
+			}
+			return null;
+		}
+		return helper(0, []);
+	}
+
+	const redKVerts = findClique(redAdj, m);
+	const blueKVerts = findClique(blueAdj, n);
+	const redKEdges = [];
+	const blueKEdges = [];
+
+	for (let fromIdx = 0; fromIdx < redKVerts?.length; fromIdx++) {
+		for (let toIdx = fromIdx + 1; toIdx < redKVerts.length; toIdx++) {
+			redKEdges.push({
+				source: redKVerts[fromIdx],
+				target: redKVerts[toIdx],
+			} as Edge);
+		}
+	}
+
+	for (let fromIdx = 0; fromIdx < blueKVerts?.length; fromIdx++) {
+		for (let toIdx = fromIdx + 1; toIdx < blueKVerts.length; toIdx++) {
+			blueKEdges.push({
+				source: blueKVerts[fromIdx],
+				target: blueKVerts[toIdx],
+			} as Edge);
+		}
+	}
+
+	return { redKEdges, blueKEdges };
+}
+
+function getEdges(vertices: Vertex[], colorBits: string) {
+	const edges: Edge[] = [];
+	let edgeId = 0;
+	for (let i = 0; i < vertices.length; i++) {
+		for (let j = i + 1; j < vertices.length; j++) {
+			edges.push({
+				source: i,
+				target: j,
+				color: parseInt(colorBits[colorBits.length - 1 - edgeId])
+					? "red"
+					: "blue",
+			} as Edge);
+			edgeId++;
+		}
+	}
+	return edges;
+}
+
 type RamseyType =
 	| "r33"
 	| "r34"
@@ -21,10 +107,15 @@ type Vertex = {
 	y: number;
 	fx: number | null;
 	fy: number | null;
+	k_red: boolean;
+	k_blue: boolean;
 };
 type Edge = {
 	source: number;
 	target: number;
+	color: "red" | "blue";
+	k_blue: boolean | null;
+	k_red: boolean | null;
 };
 
 const width = 700,
@@ -48,37 +139,55 @@ export default function Main() {
 	const [ramseyType, setRamseyType] = useState<RamseyType>("r34");
 	const [graphId, setGraphId] = useState(1);
 
-	const [vertices, setVertices] = useState<Vertex[]>([]);
 	const svgRef = useRef<SVGSVGElement | null>(null);
-
-	function getEdges(vertices: Vertex[]) {
-		const edges: Edge[] = [];
-		for (let i = 0; i < vertices.length; i++) {
-			for (let j = i + 1; j < vertices.length; j++) {
-				edges.push({ source: i, target: j });
-			}
-		}
-		return edges;
-	}
 
 	useEffect(() => {
 		const vertsCount = vertsLookup[ramseyType];
 		const centerX = width / 2;
 		const centerY = height / 2;
-		const newVertices = d3.range(vertsCount).map((i) => {
+		const vertices = d3.range(vertsCount).map((i) => {
 			const angle = (2 * Math.PI * i) / vertsCount;
 			return {
 				x: centerX + radius * Math.cos(angle),
 				y: centerY + radius * Math.sin(angle),
 			} as Vertex;
 		});
-		setVertices(newVertices);
-	}, [ramseyType]);
 
-	useEffect(() => {
-		if (vertices.length === 0) return;
+		const edgeCount = ((vertsCount - 1) * vertsCount) / 2;
 
-		const edges = getEdges(vertices);
+		const colorBits = decimalToBinaryString(graphId - 1, edgeCount);
+
+		const edges = getEdges(vertices, colorBits);
+
+		const cliques = findKmn(
+			edges,
+			vertsCount,
+			parseInt(ramseyType[1]),
+			parseInt(ramseyType[2])
+		);
+
+		for (let edgeIdx = 0; edgeIdx < edges.length; edgeIdx++) {
+			const isBluePart = cliques.blueKEdges.some(
+				(e) =>
+					e.source === edges[edgeIdx].source &&
+					e.target === edges[edgeIdx].target
+			);
+			const isRedPart = cliques.redKEdges.some(
+				(e) =>
+					e.source === edges[edgeIdx].source &&
+					e.target === edges[edgeIdx].target
+			);
+			if (isBluePart) {
+				edges[edgeIdx]["k_blue"] = true;
+				vertices[edges[edgeIdx].source]["k_blue"] = true;
+				vertices[edges[edgeIdx].target]["k_blue"] = true;
+			}
+			if (isRedPart) {
+				edges[edgeIdx]["k_red"] = true;
+				vertices[edges[edgeIdx].source]["k_red"] = true;
+				vertices[edges[edgeIdx].target]["k_red"] = true;
+			}
+		}
 
 		const simulation = d3
 			.forceSimulation(vertices)
@@ -92,12 +201,18 @@ export default function Main() {
 
 		const link = svg
 			.append("g")
-			.attr("stroke", "#bbb")
-			.attr("stroke-width", 2)
 			.selectAll("line")
 			.data(edges)
 			.enter()
-			.append("line");
+			.append("line")
+			.attr(
+				"class",
+				(d) =>
+					`edge ${d.k_red ? "highlight-k-red" : ""} ${
+						d.k_blue ? "highlight-k-blue" : ""
+					}`
+			)
+			.attr("stroke", (d) => d.color);
 
 		const node = svg
 			.append("g")
@@ -106,7 +221,18 @@ export default function Main() {
 			.enter()
 			.append("circle")
 			.attr("r", vertexRadius)
-			.attr("fill", "#1976d2")
+			.attr("class", "vertex")
+			.attr("fill", (d) => {
+				if (d.k_blue && d.k_red) {
+					return "purple";
+				} else if (d.k_blue) {
+					return "blue";
+				} else if (d.k_red) {
+					return "red";
+				} else {
+					return "#ccc";
+				}
+			})
 			.call(
 				d3
 					.drag<SVGCircleElement, Vertex>()
@@ -139,7 +265,7 @@ export default function Main() {
 		return () => {
 			simulation.stop();
 		};
-	}, [vertices, ramseyType, graphId]);
+	}, [ramseyType, graphId]);
 
 	function onGraphIdChange(e: ChangeEvent<HTMLInputElement>) {
 		e.preventDefault();
