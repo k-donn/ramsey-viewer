@@ -43,7 +43,7 @@ RUN --mount=type=cache,target=/app/.next/cache npm run build
 # =========================================
 # Stage 3: Serve Static Files with Caddy
 # =========================================
-FROM caddy:latest AS production
+FROM dhi.io/caddy:2 AS production
 
 COPY --from=builder /app/Caddyfile /etc/caddy/Caddyfile
 
