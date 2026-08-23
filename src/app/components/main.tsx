@@ -33,8 +33,8 @@ function findKmn(
 	});
 
 	// Returns the vertices part of the clique
-	function findClique(adj, size) {
-		function helper(start, clique) {
+	function findClique(adj: boolean[][], size: number): number[] | null {
+		function helper(start: number, clique: number[]): number[] | null {
 			if (clique.length === size) return clique.slice();
 			for (let v = start; v < vertsCount; v++) {
 				if (clique.every((u) => adj[u][v])) {
@@ -52,21 +52,25 @@ function findKmn(
 	const redKEdges = [];
 	const blueKEdges = [];
 
-	for (let fromIdx = 0; fromIdx < redKVerts?.length; fromIdx++) {
-		for (let toIdx = fromIdx + 1; toIdx < redKVerts.length; toIdx++) {
-			redKEdges.push({
-				source: redKVerts[fromIdx],
-				target: redKVerts[toIdx],
-			} as Edge);
+	if (redKVerts) {
+		for (let fromIdx = 0; fromIdx < redKVerts.length; fromIdx++) {
+			for (let toIdx = fromIdx + 1; toIdx < redKVerts.length; toIdx++) {
+				redKEdges.push({
+					source: redKVerts[fromIdx],
+					target: redKVerts[toIdx],
+				} as Edge);
+			}
 		}
 	}
 
-	for (let fromIdx = 0; fromIdx < blueKVerts?.length; fromIdx++) {
-		for (let toIdx = fromIdx + 1; toIdx < blueKVerts.length; toIdx++) {
-			blueKEdges.push({
-				source: blueKVerts[fromIdx],
-				target: blueKVerts[toIdx],
-			} as Edge);
+	if (blueKVerts) {
+		for (let fromIdx = 0; fromIdx < blueKVerts.length; fromIdx++) {
+			for (let toIdx = fromIdx + 1; toIdx < blueKVerts.length; toIdx++) {
+				blueKEdges.push({
+					source: blueKVerts[fromIdx],
+					target: blueKVerts[toIdx],
+				} as Edge);
+			}
 		}
 	}
 
@@ -254,10 +258,10 @@ export default function Main() {
 			);
 
 		function ticked() {
-			link.attr("x1", (d) => vertices[d.source.index].x)
-				.attr("y1", (d) => vertices[d.source.index].y)
-				.attr("x2", (d) => vertices[d.target.index].x)
-				.attr("y2", (d) => vertices[d.target.index].y);
+			link.attr("x1", (d) => (d.source as unknown as Vertex).x)
+				.attr("y1", (d) => (d.source as unknown as Vertex).y)
+				.attr("x2", (d) => (d.target as unknown as Vertex).x)
+				.attr("y2", (d) => (d.target as unknown as Vertex).y);
 
 			node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
 		}
