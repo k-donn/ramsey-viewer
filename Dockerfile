@@ -5,7 +5,9 @@
 # IMPORTANT: Docker Hardened Image (DHI) Version Maintenance
 # This Dockerfile uses a DHI Node build image and the official Caddy image. Regularly validate and update image versions for security and compatibility.
 
-FROM dhi.io/node:26-alpine-dev AS dependencies
+ARG BUILDPLATFORM
+
+FROM --platform=$BUILDPLATFORM dhi.io/node:26-alpine-dev AS dependencies
 
 WORKDIR /app
 
@@ -20,7 +22,7 @@ RUN --mount=type=cache,target=/root/.npm \
 # Stage 2: Build Next.js Application
 # ============================================
 
-FROM dhi.io/node:26-alpine-dev AS builder
+FROM --platform=$BUILDPLATFORM dhi.io/node:26-alpine-dev AS builder
 
 WORKDIR /app
 
